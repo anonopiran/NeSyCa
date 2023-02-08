@@ -9,6 +9,8 @@ import (
 
 const MTU = 65507
 
+var token = make([]byte, MTU)
+
 func writeToChannl(ch *chan<- int, val *int) {
 	*ch <- *val
 }
@@ -22,9 +24,7 @@ func Write(target *string, size int, ch chan<- int) (int, error) {
 	wrote := 0
 	defer writeToChannl(&ch, &wrote)
 	defer conn.Close()
-	token := make([]byte, MTU)
 	for size > 0 {
-		rand.Read(token)
 		w, err := conn.Write(token)
 		if err != nil {
 			logWithField.Error(err)
@@ -35,4 +35,8 @@ func Write(target *string, size int, ch chan<- int) (int, error) {
 		logWithField.Debug("MTU batch written")
 	}
 	return wrote, nil
+}
+
+func init() {
+	rand.Read(token)
 }

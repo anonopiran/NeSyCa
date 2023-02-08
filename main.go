@@ -2,9 +2,13 @@ package main
 
 import (
 	config "NeSyCa/Config"
+	utils "NeSyCa/Utils"
 	writer "NeSyCa/Writer"
 	"math/rand"
 	"time"
+
+	"net/http"
+	_ "net/http/pprof"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -20,7 +24,7 @@ func stats() {
 		for {
 			<-ticker.C
 			duration := time.Now().Unix() - startAt
-			log.WithField("duration", duration).WithField("volume", totalSize).WithField("rate", totalSize/int(duration)).Warn()
+			log.WithField("duration", utils.SecondsToHuman(int(duration))).WithField("volume", utils.ByteCountIEC(int64(totalSize))).WithField("rate", utils.ByteCountIEC(int64(totalSize/int(duration)))).Warn()
 		}
 	}()
 	go func() {
@@ -31,6 +35,9 @@ func stats() {
 	}()
 }
 func main() {
+	go func() {
+		http.ListenAndServe(":1234", nil)
+	}()
 	stats()
 	startAt = time.Now().Unix()
 	for {
