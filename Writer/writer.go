@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"net"
+	"time"
 
 	"context"
 
@@ -19,13 +20,16 @@ func WriteTCP(target net.TCPAddr, lenght int, rateLimit int, batchSize int) erro
 		return err
 	}
 	limiter := rate.NewLimiter(rate.Limit(rateLimit), rateLimit)
+	sTime := time.Now().Unix()
 	count, err := doWriteTCP(conn, *limiter, lenght, batchSize)
 	if err != nil {
 		logrus.Error(err)
 	}
+	dur := time.Now().Unix() - sTime
+	rate := count / int(dur)
 	logrus.WithField("target", target).
 		WithField("size", fmt.Sprintf("%s/%s", utils.ByteCountIEC(count), utils.ByteCountIEC(lenght))).
-		WithField("rate", utils.ByteCountIEC(rateLimit)).
+		WithField("rate", fmt.Sprintf("%s/%s", utils.ByteCountIEC(rate), utils.ByteCountIEC(rateLimit))).
 		WithField("batch size", utils.ByteCountIEC(batchSize)).
 		Info()
 	return err
