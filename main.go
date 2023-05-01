@@ -70,10 +70,11 @@ type request struct {
 var rnd = rand.New(rand.NewSource(time.Now().Unix()))
 
 func main() {
+	to := time.Duration(config.Config().Timeout) * time.Second
 	for {
 		req := makeRequest()
 		logrus.Debugf("request: %+v", req)
-		writer.WriteTCP(net.TCPAddr(req.target), req.size, req.rate, req.batchSize)
+		writer.WriteTCP(net.TCPAddr(req.target), req.size, req.rate, req.batchSize, to)
 	}
 }
 func makeRequest() request {

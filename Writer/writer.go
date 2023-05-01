@@ -1,6 +1,7 @@
 package writer
 
 import (
+	"bufio"
 	"crypto/rand"
 	"fmt"
 	"net"
@@ -14,14 +15,14 @@ import (
 	"golang.org/x/time/rate"
 )
 
-func WriteTCP(target net.TCPAddr, lenght int, rateLimit int, batchSize int) error {
+func WriteTCP(target net.TCPAddr, lenght int, rateLimit int, batchSize int, timeout time.Duration) error {
 	conn, err := net.Dial("tcp", target.String())
 	if err != nil {
 		return err
 	}
 	limiter := rate.NewLimiter(rate.Limit(rateLimit), rateLimit)
 	sTime := time.Now().UnixMicro()
-	count, err := doWriteTCP(conn, *limiter, lenght, batchSize)
+	count, err := doWriteTCP(conn, *limiter, lenght, batchSize, timeout)
 	if err != nil {
 		logrus.Error(err)
 	}
@@ -39,15 +40,17 @@ func WriteTCP(target net.TCPAddr, lenght int, rateLimit int, batchSize int) erro
 		Info()
 	return err
 }
-func doWriteTCP(conn net.Conn, limiter rate.Limiter, lenght int, batchSize int) (int, error) {
+func doWriteTCP(conn net.Conn, limiter rate.Limiter, lenght int, batchSize int, timeout time.Duration) (int, error) {
 	count := 0
 	data := make([]byte, batchSize)
 	rand.Read(data)
+	writer := bufio.NewWriter(conn)
 	for {
 		if err := limiter.WaitN(context.Background(), batchSize); err != nil {
 			return count, err
 		}
-		c_, err := conn.Write(data)
+		conn.SetWriteDeadline(time.Now().Add(timeout))
+		c_, err := writer.Write(data)
 		if err != nil {
 			return count, err
 		}

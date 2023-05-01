@@ -66,6 +66,7 @@ func setDefaultValues(k *koanf.Koanf) {
 		"file_size_min":  "10m",
 		"file_size_max":  "50m",
 		"log_level":      "warning",
+		"timeout":        "1",
 	}
 	k.Load(confmap.Provider(def, "."), nil)
 }

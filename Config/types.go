@@ -22,6 +22,7 @@ type SettingsType struct {
 	FileSizeMin  SizeType         `koanf:"file_size_min"`
 	FileSizeMax  SizeType         `koanf:"file_size_max"`
 	LogLevel     LogLevelType     `koanf:"log_level"`
+	Timeout      int              `koanf:"timeout"`
 }
 
 func (f *TCPAddressType) UnmarshalText(text []byte) error {
