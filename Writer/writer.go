@@ -1,70 +1,52 @@
 package writer
 
 import (
-	config "NeSyCa/Config"
-	"bytes"
 	"crypto/rand"
-	"crypto/tls"
+	"fmt"
 	"net"
-	"net/http"
-	"time"
 
-	log "github.com/sirupsen/logrus"
+	"context"
+
+	utils "NeSyCa/Utils"
+
+	"github.com/sirupsen/logrus"
+	"golang.org/x/time/rate"
 )
 
-const MTU = 65507
-
-var updToken []byte
-var httpToken []byte
-var httpClient *http.Client
-
-func writeToChannl(ch *chan<- int, val *int) {
-	*ch <- *val
-}
-func WriteUDP(target *string, size int, ch chan<- int) (int, error) {
-	logWithField := log.WithField("target", *target).WithField("type", "udp")
-	conn, err := net.Dial("udp", *target)
+func WriteTCP(target net.TCPAddr, lenght int, rateLimit int, batchSize int) error {
+	conn, err := net.Dial("tcp", target.String())
 	if err != nil {
-		logWithField.Error(err)
-		return 0, err
+		return err
 	}
-	wrote := 0
-	defer writeToChannl(&ch, &wrote)
-	defer conn.Close()
-	for size > 0 {
-		w, err := conn.Write(updToken)
-		if err != nil {
-			logWithField.Error(err)
-			return wrote, err
+	limiter := rate.NewLimiter(rate.Limit(rateLimit), rateLimit)
+	count, err := doWriteTCP(conn, *limiter, lenght, batchSize)
+	if err != nil {
+		logrus.Error(err)
+	}
+	logrus.WithField("target", target).
+		WithField("size", fmt.Sprintf("%s/%s", utils.ByteCountIEC(count), utils.ByteCountIEC(lenght))).
+		WithField("rate", utils.ByteCountIEC(rateLimit)).
+		WithField("batch size", utils.ByteCountIEC(batchSize)).
+		Info()
+	return err
+}
+func doWriteTCP(conn net.Conn, limiter rate.Limiter, lenght int, batchSize int) (int, error) {
+	count := 0
+	data := make([]byte, batchSize)
+	rand.Read(data)
+	for {
+		if err := limiter.WaitN(context.Background(), batchSize); err != nil {
+			return count, err
 		}
-		size -= MTU
-		wrote += w
-		logWithField.Debug("MTU batch written")
+		c_, err := conn.Write(data)
+		if err != nil {
+			return count, err
+		}
+		logrus.Debugf("wrote %d batch to %s", c_, conn.RemoteAddr())
+		count += c_
+		if count >= lenght {
+			break
+		}
 	}
-	return wrote, nil
-}
-
-func WriteHTTP(target *string, size int, ch chan<- int) (int, error) {
-	logWithField := log.WithField("target", *target).WithField("type", "http")
-	data := bytes.NewReader(httpToken[:size])
-	_, err := httpClient.Post(*target, "application/x-binary", data)
-	if err != nil {
-		logWithField.Error(err)
-		return 0, err
-	}
-	writeToChannl(&ch, &size)
-	return size, nil
-}
-
-func init() {
-	updToken = make([]byte, MTU)
-	rand.Read(updToken)
-	httpToken = make([]byte, int64(config.Config().SizeMax))
-	tr := &http.Transport{
-		MaxIdleConns:       10,
-		IdleConnTimeout:    30 * time.Second,
-		DisableCompression: true,
-		TLSClientConfig:    &tls.Config{InsecureSkipVerify: true},
-	}
-	httpClient = &http.Client{Transport: tr}
+	return count, nil
 }

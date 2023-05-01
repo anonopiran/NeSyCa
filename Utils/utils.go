@@ -6,7 +6,7 @@ import (
 	"strconv"
 )
 
-func ByteCountIEC(b int64) string {
+func ByteCountIEC(b int) string {
 	const unit = 1024
 	if b < unit {
 		return fmt.Sprintf("%d B", b)
