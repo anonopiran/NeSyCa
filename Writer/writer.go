@@ -20,21 +20,21 @@ func WriteTCP(target net.TCPAddr, lenght int, rateLimit int, batchSize int) erro
 		return err
 	}
 	limiter := rate.NewLimiter(rate.Limit(rateLimit), rateLimit)
-	sTime := time.Now().Unix()
+	sTime := time.Now().UnixMicro()
 	count, err := doWriteTCP(conn, *limiter, lenght, batchSize)
 	if err != nil {
 		logrus.Error(err)
 	}
-	dur := time.Now().Unix() - sTime
-	var rate int
+	dur := time.Now().UnixMicro() - sTime
+	var rate float32
 	if dur > 0 {
-		rate = count / int(dur)
+		rate = float32(count) / float32(dur) * 1e6
 	} else {
 		rate = 0
 	}
 	logrus.WithField("target", target).
 		WithField("size", fmt.Sprintf("%s/%s", utils.ByteCountIEC(count), utils.ByteCountIEC(lenght))).
-		WithField("rate", fmt.Sprintf("%s/%s", utils.ByteCountIEC(rate), utils.ByteCountIEC(rateLimit))).
+		WithField("rate", fmt.Sprintf("%s/%s", utils.ByteCountIEC(int(rate)), utils.ByteCountIEC(rateLimit))).
 		WithField("batch size", utils.ByteCountIEC(batchSize)).
 		Info()
 	return err
