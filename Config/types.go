@@ -2,66 +2,56 @@ package config
 
 import (
 	"fmt"
+	"math/rand"
 	net "net"
-	"strings"
+	"time"
 
 	"strconv"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type LogLevelType string
-type TCPAddressType net.TCPAddr
+type TCPAddressType struct {
+	Plain   string
+	Address net.TCPAddr
+}
 type SizeType int
+type SecondDuration time.Duration
+type MiliSecondDuration time.Duration
+type RateType struct {
+	Min SizeType `env:"MIN,required"`
+	Max SizeType `env:"MAX,required"`
+}
 type SettingsType struct {
-	TCPTargets   []TCPAddressType `koanf:"tcp_targets" validate:"required,dive,required,tcp4_addr"`
-	RateLimitMin SizeType         `koanf:"rate_limit_min" validate:"required"`
-	RateLimitMax SizeType         `koanf:"rate_limit_max" validate:"required"`
-	BatchSizeMin SizeType         `koanf:"batch_size_min"`
-	BatchSizeMax SizeType         `koanf:"batch_size_max"`
-	FileSizeMin  SizeType         `koanf:"file_size_min"`
-	FileSizeMax  SizeType         `koanf:"file_size_max"`
-	LogLevel     LogLevelType     `koanf:"log_level"`
-	Timeout      int              `koanf:"timeout"`
+	TCPTargets    []TCPAddressType   `env:"TCP_TARGETS,required"`
+	Rate          RateType           `envPrefix:"RATE_"`
+	ReportTick    SecondDuration     `env:"REPORT_TICK" envDefault:"10"`
+	UpdateTick    SecondDuration     `env:"UPDATE_TICK" envDefault:"60"`
+	DrainDelay    MiliSecondDuration `env:"DRAIN_DELAY" envDefault:"5"`
+	ConnPerTarget int                `env:"CONN_PER_TARGET" envDefault:"5"`
+	LogLevel      LogLevelType       `env:"LOG_LEVEL" envDefault:"warning"`
 }
 
-func (f *TCPAddressType) UnmarshalText(text []byte) error {
-	tcpAddr, err := net.ResolveTCPAddr("tcp", string(text))
-	if err != nil {
-		return err
+func (f *SizeType) Hr() string {
+	const unit = 1024
+	if *f < unit {
+		return fmt.Sprintf("%d B", *f)
 	}
-	*f = TCPAddressType(*tcpAddr)
-	return nil
+	div, exp := int64(unit), 0
+	for n := *f / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB",
+		float64(*f)/float64(div), "KMGTPE"[exp])
 }
-func (f *LogLevelType) UnmarshalText(text []byte) error {
-	ll, err := log.ParseLevel(string(text))
+func parseDur(s []byte) (time.Duration, error) {
+	val := string(s)
+	valInt, err := strconv.Atoi(val)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	log.SetLevel(ll)
-	*f = LogLevelType(text)
-	return nil
+	return time.Duration(valInt), nil
 }
-func (f *SizeType) UnmarshalText(text []byte) error {
-	val := string(text)
-	unit := strings.ToLower(strings.Split(val, "")[len(val)-1])
-	v_, err := strconv.Atoi(strings.Join(strings.Split(val, "")[:len(val)-1], ""))
-	if err != nil {
-		return err
-	}
-	var prd int
-	switch unit {
-	case "b":
-		prd = 1
-	case "k":
-		prd = 1 << 10
-	case "m":
-		prd = 1 << 20
-	case "g":
-		prd = 1 << 30
-	default:
-		return fmt.Errorf("%s unit not understood", unit)
-	}
-	*f = SizeType(prd * v_)
-	return nil
+func (f *RateType) GetRandom() SizeType {
+	return SizeType(rand.Intn(int(f.Max-f.Min)) + int(f.Min))
 }
