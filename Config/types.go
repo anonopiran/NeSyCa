@@ -2,11 +2,11 @@ package config
 
 import (
 	"fmt"
-	"math/rand"
 	net "net"
+	"strconv"
 	"time"
 
-	"strconv"
+	"gonum.org/v1/gonum/stat/distuv"
 )
 
 type LogLevelType string
@@ -17,9 +17,23 @@ type TCPAddressType struct {
 type SizeType int
 type SecondDuration time.Duration
 type MiliSecondDuration time.Duration
+type DistType string
+type uvType interface {
+	Rand() float64
+}
+
+const (
+	UniformE   DistType = "uniform"
+	LogNormalE DistType = "log-normal"
+)
+
 type RateType struct {
-	Min SizeType `env:"MIN,required"`
-	Max SizeType `env:"MAX,required"`
+	Dist         DistType `env:"DISTRIBUTION,required"`
+	UniformMin   float64  `env:"UNIFORM_MIN"`
+	UniformMax   float64  `env:"UNIFORM_MAX"`
+	LogNormSigma float64  `env:"LOGNORM_SIGMA"`
+	LogNormMu    float64  `env:"LOGNORM_MU"`
+	uv           uvType
 }
 type SettingsType struct {
 	TCPTargets    []TCPAddressType   `env:"TCP_TARGETS,required"`
@@ -52,6 +66,23 @@ func parseDur(s []byte) (time.Duration, error) {
 	}
 	return time.Duration(valInt), nil
 }
+func (f *RateType) Validate() error {
+	switch f.Dist {
+	case UniformE:
+		if f.UniformMin == 0 || f.UniformMax == 0 {
+			return fmt.Errorf("UNIFORM_MIN and UNIFORM_MAX should be positive values. current: %f-%f", f.UniformMin, f.UniformMax)
+		}
+		f.uv = distuv.Uniform{Min: f.UniformMin, Max: f.UniformMax}
+	case LogNormalE:
+		if f.LogNormMu == 0 || f.LogNormSigma == 0 {
+			return fmt.Errorf("LOGNORM_MU and LOGNORM_SIGMA should be positive values. current: %f-%f", f.LogNormMu, f.LogNormSigma)
+		}
+		f.uv = distuv.LogNormal{Mu: f.LogNormMu, Sigma: f.LogNormSigma}
+	default:
+		return fmt.Errorf("RATE_DISTRIBUTION should be one of %s or %s. current: %s", UniformE, LogNormalE, f.Dist)
+	}
+	return nil
+}
 func (f *RateType) GetRandom() SizeType {
-	return SizeType(rand.Intn(int(f.Max-f.Min)) + int(f.Min))
+	return SizeType(f.uv.Rand())
 }

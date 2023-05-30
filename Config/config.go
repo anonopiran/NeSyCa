@@ -30,6 +30,9 @@ func Config() *SettingsType {
 		if err := env.Parse(settingsInstance); err != nil {
 			logrus.Panicf("%+v", err)
 		}
+		if err := settingsInstance.Rate.Validate(); err != nil {
+			logrus.Panicf("%+v", err)
+		}
 		logrus.WithField("config", fmt.Sprintf("%+v", *settingsInstance)).Warn()
 	}
 	return settingsInstance
