@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/stat/distuv"
 )
 
@@ -67,17 +68,18 @@ func parseDur(s []byte) (time.Duration, error) {
 	return time.Duration(valInt), nil
 }
 func (f *RateType) Validate() error {
+	src := rand.NewSource(uint64(time.Now().Second()))
 	switch f.Dist {
 	case UniformE:
 		if f.UniformMin == 0 || f.UniformMax == 0 {
 			return fmt.Errorf("UNIFORM_MIN and UNIFORM_MAX should be positive values. current: %f-%f", f.UniformMin, f.UniformMax)
 		}
-		f.uv = distuv.Uniform{Min: f.UniformMin, Max: f.UniformMax}
+		f.uv = distuv.Uniform{Min: f.UniformMin, Max: f.UniformMax, Src: src}
 	case LogNormalE:
 		if f.LogNormMu == 0 || f.LogNormSigma == 0 {
 			return fmt.Errorf("LOGNORM_MU and LOGNORM_SIGMA should be positive values. current: %f-%f", f.LogNormMu, f.LogNormSigma)
 		}
-		f.uv = distuv.LogNormal{Mu: f.LogNormMu, Sigma: f.LogNormSigma}
+		f.uv = distuv.LogNormal{Mu: f.LogNormMu, Sigma: f.LogNormSigma, Src: src}
 	default:
 		return fmt.Errorf("RATE_DISTRIBUTION should be one of %s or %s. current: %s", UniformE, LogNormalE, f.Dist)
 	}
